@@ -3,6 +3,9 @@ use bevy_aseprite_ultra::prelude::*;
 
 static CELL_ROWS: u32 = 16;
 static CELL_COLS: u32 = 13;
+static CELL_SIZE_PX: Val = Val::Px(32.);
+static BORDER: Val = Val::Px(1.);
+static GREY_COLOR: Color = Color::linear_rgb(0.2, 0.2, 0.2);
 
 fn setup(mut cmd: Commands) {
     cmd.spawn((Camera2d, Transform::default()));
@@ -12,10 +15,10 @@ fn setup(mut cmd: Commands) {
 fn spawn_apple(mut cmd: Commands, server: Res<AssetServer>) {
     cmd.spawn((
         Node {
-            width: Val::Px(32.),
-            height: Val::Px(32.),
-            left: Val::Px(32.),
-            top: Val::Px(32.),
+            width: CELL_SIZE_PX,
+            height: CELL_SIZE_PX,
+            left: CELL_SIZE_PX,
+            top: CELL_SIZE_PX,
             position_type: PositionType::Absolute,
             ..default()
         },
@@ -37,16 +40,16 @@ fn spawn_grid_world(mut cmd: Commands) {
             // info!("row: {}, col: {}", row, col);
             cells.push((
                 Node {
-                    width: Val::Px(32.),
-                    height: Val::Px(32.),
-                    left: Val::Px((col - 1) as f32 * 32.),
-                    top: Val::Px((row - 1) as f32 * 32.),
-                    border: UiRect::all(Val::Px(1.)),
+                    width: CELL_SIZE_PX,
+                    height: CELL_SIZE_PX,
+                    left: CELL_SIZE_PX * ((col - 1) as f32),
+                    top: CELL_SIZE_PX * ((row - 1) as f32),
+                    border: UiRect::all(BORDER),
                     position_type: PositionType::Absolute,
                     overflow: Overflow::clip(),
                     ..default()
                 },
-                BackgroundColor(Color::linear_rgb(0.2, 0.2, 0.2)),
+                BackgroundColor(GREY_COLOR),
             ));
         }
     }
