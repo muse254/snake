@@ -6,7 +6,7 @@ mod magic_numbers;
 mod snake;
 use apple::Apple;
 use magic_numbers::*;
-use snake::{Snake, SnakeRenderMarker};
+use snake::{Direction, Snake, SnakeRenderMarker};
 
 fn setup(mut cmd: Commands) {
     cmd.spawn((Camera2d, Transform::default()));
@@ -110,6 +110,47 @@ fn generate_snake(
     }
 }
 
+fn manage_key_input(keys: Res<ButtonInput<KeyCode>>, mut snake_query: Query<&mut Snake>) {
+    let mut snake = match snake_query.iter_mut().next() {
+        Some(val) => val,
+        None => {
+            return;
+        }
+    };
+
+    if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::KeyW) {
+        if snake.direction != Direction::Down {
+            snake.direction = Direction::Up;
+        }
+
+        return;
+    }
+
+    if keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::KeyS) {
+        if snake.direction != Direction::Up {
+            snake.direction = Direction::Down;
+        }
+
+        return;
+    }
+
+    if keys.just_pressed(KeyCode::ArrowLeft) || keys.just_pressed(KeyCode::KeyA) {
+        if snake.direction != Direction::Right {
+            snake.direction = Direction::Left;
+        }
+
+        return;
+    }
+
+    if keys.just_pressed(KeyCode::ArrowRight) || keys.just_pressed(KeyCode::KeyD) {
+        if snake.direction != Direction::Left {
+            snake.direction = Direction::Right;
+        }
+
+        return;
+    }
+}
+
 fn spawn_grid_world(mut cmd: Commands) {
     let mut cells = Vec::new();
     for row in 1..=CELL_ROWS {
@@ -140,7 +181,7 @@ fn main() {
         }))
         .add_plugins(AsepriteUltraPlugin)
         .add_systems(Startup, (setup, spawn_apple))
-        .add_systems(Update, generate_snake)
+        .add_systems(Update, (generate_snake, manage_key_input))
         // .add_schedule(schedule)
         // .add_systems(EguiContextPass, inspector_ui)
         // .add_plugins(EguiPlugin {

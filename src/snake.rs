@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::magic_numbers::{CELL_COLS, CELL_ROWS};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Up = 1,
     Down,
