@@ -1,11 +1,12 @@
 use bevy::{image::ImageSamplerDescriptor, prelude::*, window::PrimaryWindow};
 use bevy_aseprite_ultra::prelude::*;
 
-static CELL_ROWS: u32 = 16;
-static CELL_COLS: u32 = 13;
-static CELL_SIZE_PX: Val = Val::Px(32.);
-static BORDER: Val = Val::Px(1.);
-static GREY_COLOR: Color = Color::linear_rgb(0.2, 0.2, 0.2);
+mod apple;
+mod magic_numbers;
+mod snake;
+use apple::Apple;
+use magic_numbers::*;
+use snake::{Snake, SnakeRenderMarker};
 
 fn setup(mut cmd: Commands) {
     cmd.spawn((Camera2d, Transform::default()));
@@ -13,12 +14,15 @@ fn setup(mut cmd: Commands) {
 }
 
 fn spawn_apple(mut cmd: Commands, server: Res<AssetServer>) {
+    log::info!("spawning apple");
+    let apple = Apple::new(None);
     cmd.spawn((
+        apple,
         Node {
             width: CELL_SIZE_PX,
             height: CELL_SIZE_PX,
-            left: CELL_SIZE_PX,
-            top: CELL_SIZE_PX,
+            left: CELL_SIZE_PX * apple.left() as f32,
+            top: CELL_SIZE_PX * apple.top() as f32,
             position_type: PositionType::Absolute,
             ..default()
         },
@@ -33,11 +37,83 @@ fn spawn_apple(mut cmd: Commands, server: Res<AssetServer>) {
     ));
 }
 
+fn generate_snake(
+    mut cmd: Commands,
+    mut apple_query: Query<(Entity, &mut Apple)>,
+    mut snake_query: Query<&mut Snake>,
+    mut snake_painter_query: Query<(Entity, &mut SnakeRenderMarker)>,
+    time: Res<Time>,
+) {
+    log::info!("spawning snake");
+
+    let (_, apple) = apple_query
+        .iter_mut()
+        .next()
+        .expect("expected the apple entity to have already been registered");
+
+    let mut snake = match snake_query.iter_mut().next() {
+        Some(mut val) => {
+            // timers gotta be ticked, to work
+            val.timer.tick(time.delta());
+            val
+        }
+
+        None => {
+            // spawn the snake and return
+            let snake = Snake::new(&apple.0);
+            for ord in &snake.body {
+                cmd.spawn((
+                    SnakeRenderMarker,
+                    Node {
+                        width: CELL_SIZE_PX,
+                        height: CELL_SIZE_PX,
+                        left: CELL_SIZE_PX * (ord.parent_abs_pos_left as f32),
+                        top: CELL_SIZE_PX * (ord.parent_abs_pos_top as f32),
+                        position_type: PositionType::Absolute,
+                        ..default()
+                    },
+                    BackgroundColor(Color::linear_rgb(0.0, 0.0, 0.0)),
+                ));
+            }
+
+            cmd.spawn(snake);
+            return;
+        }
+    };
+
+    if !snake.timer.finished() {
+        log::info!("Elapsed {:?}", snake.timer.elapsed());
+        log::info!("Timer not yet done");
+        return;
+    }
+
+    snake.r#move(None);
+
+    // despawn current snake
+    for (entity, _) in snake_painter_query.iter_mut() {
+        cmd.entity(entity).despawn();
+    }
+
+    for ord in &snake.body {
+        cmd.spawn((
+            SnakeRenderMarker,
+            Node {
+                width: CELL_SIZE_PX,
+                height: CELL_SIZE_PX,
+                left: CELL_SIZE_PX * (ord.parent_abs_pos_left as f32),
+                top: CELL_SIZE_PX * (ord.parent_abs_pos_top as f32),
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+            BackgroundColor(Color::linear_rgb(0.0, 0.0, 0.0)),
+        ));
+    }
+}
+
 fn spawn_grid_world(mut cmd: Commands) {
     let mut cells = Vec::new();
     for row in 1..=CELL_ROWS {
         for col in 1..=CELL_COLS {
-            // info!("row: {}, col: {}", row, col);
             cells.push((
                 Node {
                     width: CELL_SIZE_PX,
@@ -64,6 +140,8 @@ fn main() {
         }))
         .add_plugins(AsepriteUltraPlugin)
         .add_systems(Startup, (setup, spawn_apple))
+        .add_systems(Update, generate_snake)
+        // .add_schedule(schedule)
         // .add_systems(EguiContextPass, inspector_ui)
         // .add_plugins(EguiPlugin {
         //     enable_multipass_for_primary_context: true,
