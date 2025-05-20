@@ -1,7 +1,11 @@
 use bevy::{ecs::component::Component, time::Timer};
 use rand::Rng;
 
-use crate::magic_numbers::{CELL_COLS, CELL_ROWS};
+use crate::{
+    apple::Apple,
+    magic_numbers::{CELL_COLS, CELL_ROWS},
+    state_events::GameEvent,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -23,7 +27,7 @@ impl Default for Direction {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Ordinance {
     pub parent_abs_pos_left: i8,
     pub parent_abs_pos_top: i8,
@@ -157,51 +161,52 @@ impl Snake {
     }
 
     pub fn score(&self) -> u32 {
-        (self.body.len() - 1) as u32
+        (self.body.len() - 3) as u32
     }
 
     pub fn reset_timer(&mut self) {
-        self.timer = Timer::from_seconds(0.5, bevy::time::TimerMode::Once);
+        // the score is a multiplier
+        self.timer = Timer::from_seconds(0.3, bevy::time::TimerMode::Once);
     }
 
-    pub fn r#move(&mut self, direction: Option<Direction>) {
-        // if we are provided with a move
-        match direction {
-            // Some(Direction::Up) => {
-            //     // checking
-            // }
-            // Some(Direction::Down) => {}
-            // Some(Direction::Left) => {}
-            // Some(Direction::Right) => {}
-            None => {
-                // remove the tail
-                self.body.pop();
+    // returning true if the apple was eaten
+    pub fn r#move(&mut self, apple: &Apple) -> GameEvent {
+        let advancing_to_eat_apple = self.body[0] == apple.0;
 
-                // advance the head in direction
-                let mut new_body = match self.direction {
-                    Direction::Up => {
-                        vec![self.body[0].get_top()]
-                    }
-                    Direction::Down => {
-                        vec![self.body[0].get_bottom()]
-                    }
-                    Direction::Left => {
-                        vec![self.body[0].get_left()]
-                    }
-                    Direction::Right => {
-                        vec![self.body[0].get_right()]
-                    }
-                };
-
-                new_body.append(&mut self.body);
-                self.body = new_body;
-            }
-
-            _ => {
-                unimplemented!()
-            }
+        // if it's advancing to eat the apple, we don't cut the tail to give illusion of growth
+        if !advancing_to_eat_apple {
+            // remove the tail
+            self.body.pop();
         }
 
+        // advance the head in direction
+        let mut new_body = match self.direction {
+            Direction::Up => {
+                vec![self.body[0].get_top()]
+            }
+            Direction::Down => {
+                vec![self.body[0].get_bottom()]
+            }
+            Direction::Left => {
+                vec![self.body[0].get_left()]
+            }
+            Direction::Right => {
+                vec![self.body[0].get_right()]
+            }
+        };
+
+        // report collision if collided with self & don't update snake
+        if self.body.iter().any(|v| *v == new_body[0]) {
+            return GameEvent::Collision;
+        }
+
+        new_body.append(&mut self.body);
+        self.body = new_body;
         self.reset_timer();
+        if advancing_to_eat_apple {
+            return GameEvent::EatApple;
+        }
+
+        GameEvent::None
     }
 }

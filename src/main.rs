@@ -4,12 +4,15 @@ use bevy_aseprite_ultra::prelude::*;
 mod apple;
 mod magic_numbers;
 mod snake;
+mod state_events;
 use apple::Apple;
 use magic_numbers::*;
 use snake::{Direction, Snake, SnakeRenderMarker};
+use state_events::GameEvent;
 
 fn setup(mut cmd: Commands) {
     cmd.spawn((Camera2d, Transform::default()));
+    cmd.spawn(GameEvent::None);
     spawn_grid_world(cmd);
 }
 
@@ -41,12 +44,36 @@ fn generate_snake(
     mut cmd: Commands,
     mut apple_query: Query<(Entity, &mut Apple)>,
     mut snake_query: Query<&mut Snake>,
+    mut game_event_query: Query<&mut GameEvent>,
     mut snake_painter_query: Query<(Entity, &mut SnakeRenderMarker)>,
+    server: Res<AssetServer>,
     time: Res<Time>,
 ) {
+    // check for collisions or paused state
+    let game_event = match game_event_query.iter_mut().next() {
+        Some(val) => val.clone(),
+        None => {
+            return;
+        }
+    };
+
+    match game_event {
+        GameEvent::Collision => {
+            log::info!("Snake collided with itself");
+            return;
+        }
+
+        GameEvent::Paused => {
+            log::info!("Game is paused");
+            return;
+        }
+
+        _ => {}
+    }
+
     log::info!("spawning snake");
 
-    let (_, apple) = apple_query
+    let (apple_entity, apple) = apple_query
         .iter_mut()
         .next()
         .expect("expected the apple entity to have already been registered");
@@ -87,9 +114,56 @@ fn generate_snake(
         return;
     }
 
-    snake.r#move(None);
+    // if we're consuming the apple in the move
+
+    match snake.r#move(&apple) {
+        GameEvent::EatApple => {
+            // despawn apple
+            cmd.entity(apple_entity).despawn();
+
+            // spawn new apple
+            let apple = Apple::new(Some(&snake));
+            cmd.spawn((
+                apple,
+                Node {
+                    width: CELL_SIZE_PX,
+                    height: CELL_SIZE_PX,
+                    left: CELL_SIZE_PX * apple.left() as f32,
+                    top: CELL_SIZE_PX * apple.top() as f32,
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                AseUiSlice {
+                    name: "apple".into(),
+                    aseprite: server.load("apple.aseprite"),
+                },
+                Sprite {
+                    flip_x: true,
+                    ..default()
+                },
+            ));
+        }
+
+        GameEvent::Collision => {
+            // let's pause the timer and return
+            let mut game_event = match game_event_query.iter_mut().next() {
+                Some(val) => val,
+                None => {
+                    return;
+                }
+            };
+
+            *game_event = GameEvent::Collision;
+            snake.timer.pause();
+            log::info!("Snake collided with itself");
+            return;
+        }
+
+        _ => {}
+    }
 
     // despawn current snake
+    // snake.reset_timer();
     for (entity, _) in snake_painter_query.iter_mut() {
         cmd.entity(entity).despawn();
     }
@@ -166,7 +240,7 @@ fn spawn_grid_world(mut cmd: Commands) {
                     overflow: Overflow::clip(),
                     ..default()
                 },
-                BackgroundColor(GREY_COLOR),
+                BackgroundColor(GREEN_COLOR),
             ));
         }
     }
